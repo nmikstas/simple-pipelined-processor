@@ -1,0 +1,88 @@
+/************************************************************************/
+/*  R instruction format:                                               */
+/*  op   rd  rs  rt  N/A                                                */
+/*  0000_000_000_000_XXX                                                */
+/*                                                                      */
+/*  I instruction format:                                               */
+/*  op    rd  rs  signed_lit                                            */
+/*  0000__000_000_000000                                                */
+/*                                                                      */
+/*  B/S instruction format:                                             */
+/*  op    rt  rs  signed_lit                                            */
+/*  0000__000_000_000000                                                */
+/*                                                                      */
+/*  J instruction format:                                               */
+/*  op      unsinged_lit                                                */
+/*  0000____000000000000                                                */
+/*                                                                      */
+/*  Opcodes:                                                            */
+/*  0000 NOP  N/A                                   (All  zeros)        */
+/*  0001 ADD  $rd = $rs + $rt                       (R   format)        */
+/*  0010 ADDi $rd = $rs + lit                       (I   format)        */
+/*  0011 SUB  $rd = $rs - $rt                       (R   format)        */
+/*  0100 SUBi $rd = $rs - lit                       (I   format)        */
+/*  0101 LWr  $rd = mem($rs + $rt)                  (R   format)        */
+/*  0110 LW   $rd = mem($rs + lit)                  (I   format)        */
+/*  0111 SW   mem($rs + lit) = $rt                  (B/S format)        */
+/*  1000 JMP  PC = unsigned_lit                     (J   format)        */
+/*  1001 BEQ  if $rs == $rt, PC = PC + 2*signed_lit (B/S format)        */
+/*                                                                      */
+/*  Underscores can be used to separate                                 */
+/*  data bits into logical groups.                                      */
+/*                                                                      */
+/*  C-style comments can be used to make                                */
+/*  the code more readable.                                             */
+/*                                                                      */
+/*  The data radix is base 2(binary).                                   */
+/************************************************************************/
+
+//////////////////////////////////////////////////////////////////////////
+//  Create a new array with the reverse contents of the original.       //
+//                                                                      //
+//  Data memory:                                                        //
+//  0x00 = First array base address.                                    //
+//  0x04 = First array length in elements.                              //
+//  0x08 = Second array base address.                                   //
+//  0x0C = Start of first array.                                        //
+//  0x3C = Start of second array.                                       //
+//                                                                      //
+//  Registers:                                                          //
+//  r0 = Zero reference.                                                //
+//  r1 = First array base address.                                      //
+//  r2 = Pointer into first array.                                      //
+//  r3 = Pointer into second array.                                     //
+//  r4 = Retreived value from first array                               //
+//////////////////////////////////////////////////////////////////////////
+
+//Address 0
+0101_001_000_000_000 //LWr  $r1, $r0($r0) <- Get first array base address.
+//Address 2
+0110__010_000_000100 //LW   $r2, 4($r0)   <- Get array length in words.
+//Address 4
+0001_010_010_010_000 //ADD  $r2, $r2, $r2 <- *2.
+//Address 6
+0001_010_010_010_000 //ADD  $r2, $r2, $r2 <- *2, Array length in bytes.
+//Address 8
+0100__010_010_000100 //SUBi $r2, 4($r2)   <- Subtract 4 to find start of last word.
+//Address 10
+0110__011_000_001000 //LW   $r3, 8($r0)   <- Get second array base address.
+
+//CopyLoop:
+
+//Address 12
+0101_100_001_010_000 //LWr  $r4, $r2($r1) <- Get value from first array.
+//Address 14
+0111__100_011_000000 //SW   $r4, 0(r3)    <- Copy value into the second array.
+//Address 16
+1001__010_000_000011 //BEQ  $r2, $r0, 3   <- Exit if last index reached.
+//Address 18
+0100__010_010_000100 //SUBi $r2, $r2, 4   <- Decrement first array index.
+//Address 20
+0010__011_011_000100 //ADDi $r3, $r3, 4   <- Increment second array index.
+//Address 22
+1000____000000001100 //JMP  AccumLoop     <- More work to do, loop.
+
+//Spinlock:
+
+//Address 24
+1000____000000011000 //JMP  Spinlock      <- Done.
